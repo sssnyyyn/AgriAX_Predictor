@@ -262,6 +262,7 @@ def generate_real_gradcam(pil_img, model, device, class_idx):
 # -----------------------------------------------------------------------------
 # 4. UI 렌더링 및 사이드바 설정
 # -----------------------------------------------------------------------------
+
 st.set_page_config(page_title="AgriAX Predictor", layout="wide")
 
 st.markdown("""
@@ -277,41 +278,24 @@ with st.sidebar:
     st.caption("실시간 위성 및 드론 멀티모달 농해 진단")
     st.markdown("---")
 
-    # 1. 시스템 인프라 설정 (Secrets 연동)
-    # Secrets에서 ID를 가져오고, 없으면 None을 반환
-    gcp_project_id = st.secrets.get("GCP_PROJECT_ID")
+    st.header("시스템 인프라 설정")
 
-    # 인증 시도
-    gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
+    # 배포 환경에서 즉시 시연 가능하도록 기본값 설정
+    gcp_project_id = st.text_input(
+        "GCP Project ID",
+        value="agriax-predictor",
+        help="Google Earth Engine 프로젝트 ID를 입력하십시오."
+    )
 
-    if gee_ready:
-        st.success("시스템 인증 성공")
-        # 인증 성공 시 UI에서 입력창을 노출하지 않음
-    else:
-        # 인증 실패 시에만 백업용으로 입력창 노출
-        st.warning("GCP 인증 정보가 확인되지 않습니다.")
-        gcp_project_id = st.text_input(
-            "GCP Project ID 직접 입력",
-            value="",
-            help="Secrets 설정이 누락된 경우 직접 입력하십시오."
-        )
-        # 직접 입력 시 다시 인증 시도
-        if gcp_project_id:
-            gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
-
-    st.markdown("---")
-
-    # 입력된 ID를 기반으로 GEE 초기화 프로세스 실행
     gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
 
     if gee_ready:
         st.success("시스템 인증 성공")
     else:
-        st.warning(f"시스템 인증 대기: {gee_msg}")
+        st.warning(f"인증 대기 중: {gee_msg}")
 
     st.markdown("---")
 
-    # 2. 농가 재무 설정
     st.header("농가 재무 설정")
     farm_area_pyung = st.number_input("재배 면적 (평)", value=1000, step=100)
     farm_area_sqm = farm_area_pyung * 3.3058
@@ -320,7 +304,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 3. 분석 파라미터 설정
     st.header("분석 파라미터")
     farm_lon = st.number_input("경도 (Longitude)", value=126.8000, format="%.4f")
     farm_lat = st.number_input("위도 (Latitude)", value=36.4500, format="%.4f")
@@ -328,7 +311,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 4. 자원 로드 상태 확인 (실시간 상태 피드백)
     st.header("모델 로드 현황")
     v_model, v_device = load_vision_model()
     if v_model:
