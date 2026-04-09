@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+opencv-python-headless
+pillow
+torch
+torchvision
+tensorflow
+earthengine-api
+plotly
