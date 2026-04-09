@@ -58,11 +58,29 @@ class AgriAX_DANN(nn.Module):
 @st.cache_resource
 def init_google_earth_engine(project_id=""):
     try:
-        if project_id:
-            ee.Initialize(project=project_id)
+        # 1. Streamlit Secrets에 저장된 서비스 계정 키 확인
+        if "GCP_SERVICE_ACCOUNT" in st.secrets:
+            # Secrets에서 정보를 읽어와 딕셔너리로 변환
+            info = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
+
+            # 서비스 계정 자격 증명(Credentials) 생성
+            credentials = ee.ServiceAccountCredentials(
+                info['client_email'],
+                key_data=info['private_key']
+            )
+
+            # 자격 증명과 프로젝트 ID를 사용하여 초기화
+            ee.Initialize(credentials=credentials, project=project_id)
+            return True, "SUCCESS (Service Account)"
+
         else:
-            ee.Initialize()
-        return True, "SUCCESS"
+            # 2. Secrets가 없을 경우 기존 로컬 인증 방식 시도 (로컬 테스트용)
+            if project_id:
+                ee.Initialize(project=project_id)
+            else:
+                ee.Initialize()
+            return True, "SUCCESS (Local/Default)"
+
     except Exception as e:
         return False, str(e)
 
@@ -283,7 +301,7 @@ with st.sidebar:
     # 배포 환경에서 즉시 시연 가능하도록 기본값 설정
     gcp_project_id = st.text_input(
         "GCP Project ID",
-        value="agriax-predictor",
+        value="your-project-id-here",
         help="Google Earth Engine 프로젝트 ID를 입력하십시오."
     )
 
