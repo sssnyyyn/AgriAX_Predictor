@@ -277,15 +277,29 @@ with st.sidebar:
     st.caption("실시간 위성 및 드론 멀티모달 농해 진단")
     st.markdown("---")
 
-    # 1. 시스템 및 인프라 설정 (직접 입력 구조)
-    st.header("시스템 인프라 설정")
+    # 1. 시스템 인프라 설정 (Secrets 연동)
+    # Secrets에서 ID를 가져오고, 없으면 None을 반환
+    gcp_project_id = st.secrets.get("GCP_PROJECT_ID")
 
-    # 기본값 없이 빈 문자열로 시작하며, 배포 환경의 세션 상태에 따라 입력 가능
-    gcp_project_id = st.text_input(
-        "GCP Project ID",
-        value="",
-        help="Google Earth Engine 권한이 있는 프로젝트 ID를 입력하십시오. 배포 환경의 Secrets가 작동하지 않을 경우 직접 입력이 필요합니다."
-    )
+    # 인증 시도
+    gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
+
+    if gee_ready:
+        st.success("시스템 인증 성공")
+        # 인증 성공 시 UI에서 입력창을 노출하지 않음
+    else:
+        # 인증 실패 시에만 백업용으로 입력창 노출
+        st.warning("GCP 인증 정보가 확인되지 않습니다.")
+        gcp_project_id = st.text_input(
+            "GCP Project ID 직접 입력",
+            value="",
+            help="Secrets 설정이 누락된 경우 직접 입력하십시오."
+        )
+        # 직접 입력 시 다시 인증 시도
+        if gcp_project_id:
+            gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
+
+    st.markdown("---")
 
     # 입력된 ID를 기반으로 GEE 초기화 프로세스 실행
     gee_ready, gee_msg = init_google_earth_engine(gcp_project_id)
