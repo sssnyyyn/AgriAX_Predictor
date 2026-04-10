@@ -63,11 +63,13 @@ def init_google_earth_engine(project_id=""):
             # Secrets에서 정보를 읽어와 딕셔너리로 변환
             info = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 
+            private_key = info['private_key'].replace('\\n', '\n')
+
             # 서비스 계정 자격 증명(Credentials) 생성
             # private_key와 client_email을 사용하여 인증 객체를 만듭니다.
             credentials = ee.ServiceAccountCredentials(
                 info['client_email'],
-                key_data=info['private_key']
+                key_data=private_key
             )
 
             # 생성된 자격 증명과 프로젝트 ID를 사용하여 초기화
