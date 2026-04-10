@@ -64,22 +64,23 @@ def init_google_earth_engine(project_id=""):
             info = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 
             # 서비스 계정 자격 증명(Credentials) 생성
+            # private_key와 client_email을 사용하여 인증 객체를 만듭니다.
             credentials = ee.ServiceAccountCredentials(
                 info['client_email'],
                 key_data=info['private_key']
             )
 
-            # 자격 증명과 프로젝트 ID를 사용하여 초기화
+            # 생성된 자격 증명과 프로젝트 ID를 사용하여 초기화
             ee.Initialize(credentials=credentials, project=project_id)
-            return True, "SUCCESS (Service Account)"
+            return True, "SUCCESS"
 
         else:
-            # 2. Secrets가 없을 경우 기존 로컬 인증 방식 시도 (로컬 테스트용)
+            # 2. Secrets가 없을 경우 로컬 인증 방식 시도 (로컬 개발용)
             if project_id:
                 ee.Initialize(project=project_id)
             else:
                 ee.Initialize()
-            return True, "SUCCESS (Local/Default)"
+            return True, "SUCCESS"
 
     except Exception as e:
         return False, str(e)
