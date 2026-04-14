@@ -1,15 +1,34 @@
-data/
-models/*.keras
-*.zip
-
+# Python 임시 컴파일 파일
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+
+# 가상환경
 venv/
 .venv/
+env/
+.env
+
+# Jupyter Notebook 임시 파일
 .ipynb_checkpoints/
 
-models/
-*.keras
+# 프로젝트 보안 키 및 설정 파일
+.streamlit/secrets.toml
+kaggle.json
+
+# 대용량 데이터 및 로컬 데이터베이스
+data/chroma_db/
+data/raw/
+
+# AI 모델 가중치 파일 (대용량)
+*.pth
 *.h5
-*.pb
+models/
+
+# 실행 파일 및 외부 도구
+tools/ngrok/
+*.exe
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
