@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import time
+import sys
 import os
 import ee
 
@@ -16,6 +17,14 @@ from torch.autograd import Function
 # TensorFlow (Time-Series)
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Input, LSTM, Dense
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
+from src.rag_engine import AgriDoctorRAG
 
 # -----------------------------------------------------------------------------
 # 1. PyTorch 모델 아키텍처 (DANN)
@@ -90,13 +99,13 @@ def init_google_earth_engine(project_id=""):
 @st.cache_resource
 def load_vision_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = 'dann_multicrop_best.pth'
+    model_path = 'models/dann_multicrop_best.pth'
 
-    base_model = build_resnet50_model(num_classes=38)
+    base_model = build_resnet50_model(num_classes=21)
     model = AgriAX_DANN(base_model=base_model, num_classes=21)
 
     if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
         model.to(device)
         model.eval()
         return model, device
@@ -104,7 +113,7 @@ def load_vision_model():
 
 @st.cache_resource
 def load_timeseries_model():
-    model_path = 'lstm_best_model.h5'
+    model_path = 'models/lstm_best_model.h5'
     if os.path.exists(model_path):
         model = Sequential()
         model.add(Input(shape=(14, 1)))
@@ -304,7 +313,7 @@ with st.sidebar:
     # 배포 환경에서 즉시 시연 가능하도록 기본값 설정
     gcp_project_id = st.text_input(
         "GCP Project ID",
-        value="your-project-id-here",
+        value="agriax-predictor",
         help="Google Earth Engine 프로젝트 ID를 입력하십시오."
     )
 
@@ -446,6 +455,37 @@ with tabs[0]:
                         st.error(diagnosis["guide"])
                     else:
                         st.success(diagnosis["guide"])
+
+                # 병해가 감지된 경우(pred_idx > 0)에만 RAG 처방전 생성
+                if pred_idx > 0:
+                    st.markdown("---")
+                    st.subheader("👨‍⚕️ Agri-Doctor 맞춤형 처방전")
+
+                    with st.spinner("전문 방제 매뉴얼을 검색하여 처방전을 작성하고 있습니다... (약 10~20초 소요)"):
+                        # RAG 엔진 초기화 및 처방 생성 (가벼운 모델 적용)
+                        rag = AgriDoctorRAG(llm_model="gemma:2b")
+                        prescription = rag.generate_prescription(diagnosis["name"])
+
+                    if "error" in prescription:
+                        st.error(f"처방전 생성 중 오류가 발생했습니다: {prescription['error']}")
+                    else:
+                        st.info(prescription.get("llm_narrative", ""))
+
+                        col_rag1, col_rag2 = st.columns(2)
+                        with col_rag1:
+                            st.markdown("#### 🚨 발생 환경 및 증상")
+                            st.write(prescription.get("environment_and_symptoms", ""))
+                        with col_rag2:
+                            st.markdown("#### 🌱 재배적 방제 (농약 외 방법)")
+                            st.write(prescription.get("cultural_control", ""))
+
+                        st.markdown("#### 🧪 화학적 방제 (추천 농약)")
+
+                        chemical_data = prescription.get("chemical_control", [])
+                        if chemical_data:
+                            st.table(chemical_data)
+                        else:
+                            st.warning("등록된 화학적 방제 정보가 없습니다.")
 
 # --- Tab 2: 기술 상세 ---
 with tabs[1]:
