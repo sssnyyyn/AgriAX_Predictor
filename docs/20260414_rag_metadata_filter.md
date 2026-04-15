@@ -1,7 +1,7 @@
 # 🛠 AgriAX Predictor v2.0 - 트러블슈팅 기록
 
-**문서 작성일**: 2025년 1월 20일  
-**프로젝트**: AgriAX Predictor v2.0 LLM 고도화  
+**문서 작성일**: 2026년 4월 14일
+**프로젝트**: AgriAX Predictor v2.0 LLM 고도화
 **담당자**: [개인 프로젝트]
 
 ---
@@ -48,13 +48,13 @@
 **검색 결과 (문제 상황)**
 ```
 [순위 1 - ❌ 잘못된 결과]
-메타데이터: 
+메타데이터:
   - disease_name: "토마토 잎마름병"
   - category: "1. 발생 환경 및 증상"
 
-내용: 
+내용:
 "- 주로 식물체의 아래쪽 늙은 잎(하엽)에서 먼저 발생하며, 점차 위쪽으로 번진다.
-- 초기에는 암갈색의 작은 점이 생기고, 병반이 확대되면서 내부에 명확한 
+- 초기에는 암갈색의 작은 점이 생기고, 병반이 확대되면서 내부에 명확한
   동심윤문(겹무늬)이 형성되는 것이 특징이다..."
 ```
 
@@ -70,7 +70,7 @@ LLM 처방 생성(잘못된 컨텍스트)
 최종 출력(토마토 농약을 고추에 처방) 💥
 ```
 
-**결과**: 
+**결과**:
 - ❌ 고추 농가에 토마토 전용 농약 처방 위험
 - ❌ 시스템 신뢰도 심각하게 훼손
 - ❌ 프로덕션 배포 불가능 상태
@@ -127,7 +127,7 @@ LLM 처방 생성(잘못된 컨텍스트)
 - v1 vs v2 = 0.72 (중간)
 - v1 vs v3 = 0.78 (더 높음!) ⚠️
 
-이유: "둥근 반점", "흑갈색" 증상 서술어가 
+이유: "둥근 반점", "흑갈색" 증상 서술어가
       토마토 데이터와 더 정확히 일치함
 
 결론: 순수 벡터 검색의 문맥적 한계 (가설 3 채택)
@@ -240,7 +240,7 @@ AgriAX의 강점:
 2️⃣ 이 결과를 활용하지 않는 것은 자산 낭비
 3️⃣ 메타데이터는 이미 청킹 단계에서 준비됨
 
-→ 메타데이터 필터링이 가장 효율적이고 
+→ 메타데이터 필터링이 가장 효율적이고
    시스템 철학에 부합하는 솔루션
 ```
 
@@ -318,7 +318,7 @@ class RAGPipeline:
     """
     Agri-Doctor 모듈의 핵심 RAG 엔진
     """
-    
+
     def generate_prescription(
         self,
         vision_diagnosis: Dict  # 비전 모델 출력
@@ -329,27 +329,27 @@ class RAGPipeline:
         # ✅ Step 1: 비전 모델 결과 추출 (필수)
         target_disease = vision_diagnosis["disease_name"]
         confidence = vision_diagnosis["confidence"]
-        
+
         if confidence < 0.8:
             raise ValueError("Confidence too low for RAG filtering")
-        
+
         # ✅ Step 2: 메타데이터 필터를 반드시 포함
         docs = self.vectorstore.similarity_search(
             query=self._refine_query(),  # 최적화된 쿼리
             k=3,
             filter={"disease_name": target_disease}  # 강제 필터
         )
-        
+
         # ✅ Step 3: 필터 후 결과 검증
         for doc in docs:
             assert doc.metadata['disease_name'] == target_disease
-        
+
         # ✅ Step 4: 검증된 컨텍스트로 LLM 호출
         llm_response = self.llm.invoke(
             context=docs,
             disease=target_disease
         )
-        
+
         return llm_response
 ```
 
@@ -381,26 +381,26 @@ def agri_doctor_tab():
     """
     Agri-Doctor UI 탭
     """
-    
+
     st.title("🚜 처방 생성 (Agri-Doctor)")
-    
+
     # Step 1: 위성 이미지 업로드 및 비전 모델 분석
     uploaded_file = st.file_uploader("위성 이미지 선택")
-    
+
     if uploaded_file:
         # ✅ 비전 모델 호출 (확정적 진단)
         vision_result = vision_model.predict(uploaded_file)
-        
+
         st.info(f"진단 결과: {vision_result['disease_name']} "
                 f"(신뢰도: {vision_result['confidence']:.1%})")
-        
+
         # ✅ RAG 파이프라인으로 처방 생성
         # → vision_result를 반드시 전달
         rag_pipeline = RAGPipeline()
         prescription = rag_pipeline.generate_prescription(
             vision_diagnosis=vision_result  # ⭐ 강제 전달
         )
-        
+
         # Step 2: 결과 표시
         st.success("✅ 처방 생성 완료")
         st.write(prescription)
@@ -418,11 +418,11 @@ class TestRAGFiltering:
     """
     RAG 파이프라인의 메타데이터 필터링 검증
     """
-    
+
     @pytest.fixture
     def rag_pipeline(self):
         return RAGPipeline()
-    
+
     @pytest.mark.parametrize("disease,expected_count", [
         ("고추 탄저병", 2),
         ("오이 흰가루병", 2),
@@ -442,14 +442,14 @@ class TestRAGFiltering:
             k=2,
             filter={"disease_name": disease}
         )
-        
+
         # 1. 결과 개수 확인
         assert len(docs) == expected_count
-        
+
         # 2. 모든 결과가 지정된 질병인지 확인
         for doc in docs:
             assert doc.metadata['disease_name'] == disease
-    
+
     def test_no_cross_contamination(self, rag_pipeline):
         """
         고추 쿼리 시 다른 작물 정보가 혼입되지 않는지 확인
@@ -459,9 +459,9 @@ class TestRAGFiltering:
             k=2,
             filter={"disease_name": "고추 탄저병"}
         )
-        
+
         forbidden_diseases = ["토마토 잎마름병", "오이 흰가루병"]
-        
+
         for doc in pepper_docs:
             assert doc.metadata['disease_name'] not in forbidden_diseases
 ```
@@ -586,7 +586,7 @@ docs = splitter.split_text(raw_text)
 **중요한 통찰**
 ```
 LLM이나 임베딩 모델의 성능 개선에 먼저 집중하는 것보다,
-전체 시스템 구조에서 "이미 확보한 정보"를 
+전체 시스템 구조에서 "이미 확보한 정보"를
 어떻게 활용할 것인지 고민하는 것이 더 효율적입니다.
 
 AgriAX의 경우:
@@ -758,6 +758,6 @@ compression_retriever = ContextualCompressionRetriever(
 
 ---
 
-**문서 버전**: 1.0  
-**마지막 수정**: 2025-01-20  
+**문서 버전**: 1.0
+**마지막 수정**: 2026-04-14
 **상태**: ✅ Resolved & Documented
