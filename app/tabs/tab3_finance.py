@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import ee
+import time
+import plotly.express as px
 from src.earth_engine import EarthEngineManager
 from src.financial_analyzer import FinancialAnalyzer
 
@@ -41,7 +43,7 @@ def render():
     diagnosis = st.session_state.get('diagnosis')
 
     if not diagnosis:
-        st.warning("'작물 병해 판별' 탭에서 작물 이미지를 분석해 주세요.")
+        st.warning("'작물 병해 판별' 탭에서 작물 이미지를 분석해 주십시오.")
         return
 
     col_lbl, col_id, col_btn = st.columns([2, 3, 2])
@@ -80,7 +82,15 @@ def render():
 
         with st.spinner("데이터 추출 중"):
             try:
+                start_time_gee = time.time()
+
                 ndvi_data, status = EarthEngineManager.fetch_real_gee_ndvi(lon, lat)
+
+                end_time_gee = time.time()
+
+                if 'latency' in st.session_state:
+                    st.session_state['latency']['gee'] = end_time_gee - start_time_gee
+
                 if status == "SUCCESS":
                     st.session_state['real_ndvi_seq'] = ndvi_data
                 else:
@@ -107,6 +117,8 @@ def render():
         yield_sqm = f2.number_input("기대 수확량 (kg/sqm)", value=1.5, step=0.1)
         price_kg = f3.number_input("시장 단가 (원/kg)", value=15000, step=500)
 
+    start_time_roi = time.time()
+
     potential_revenue = area_sqm * yield_sqm * price_kg
     loss_rate = 0.35 if "탄저병" in diagnosis["name"] else (0.0 if "정상" in diagnosis["name"] else 0.20)
 
@@ -116,6 +128,11 @@ def render():
     recovered_revenue = dynamic_loss * 0.80
     net_profit = recovered_revenue - dynamic_cost
     dynamic_roi = (net_profit / dynamic_cost * 100) if dynamic_cost > 0 else 0
+
+    end_time_roi = time.time()
+
+    if 'latency' in st.session_state:
+        st.session_state['latency']['roi'] = end_time_roi - start_time_roi
 
     r1, r2, r3 = st.columns(3)
     with r1:
@@ -127,7 +144,19 @@ def render():
 
     if dynamic_loss > 0:
         st.markdown("##### 시나리오별 재무 지표 시각화")
-        bar_data = pd.DataFrame({
-            "금액(원)": [dynamic_loss, dynamic_cost, net_profit]
-        }, index=["방치 시 손실액", "초기 방제 비용", "방제 후 기대수익"])
-        st.bar_chart(bar_data, color="#e74c3c")
+
+        loss_data = pd.DataFrame({
+            "구분": ["방치 시 손실", "방제 비용", "방제 후 기대수익"],
+            "금액": [dynamic_loss, dynamic_cost, net_profit]
+        })
+
+        fig = px.bar(loss_data, x="구분", y="금액", color="구분",
+                     color_discrete_map={
+                         "방치 시 손실": "#e74c3c",
+                         "방제 비용": "#3498db",
+                         "방제 후 기대수익": "#2ecc71"
+                     })
+
+        fig.update_layout(showlegend=False, margin=dict(t=10, b=10))
+
+        st.plotly_chart(fig, use_container_width=True, key="tab3_finance_plotly_chart")

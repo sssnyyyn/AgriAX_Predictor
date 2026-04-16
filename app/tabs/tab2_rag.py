@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from src.rag_engine import AgriDoctorRAG
 
 def render():
@@ -13,7 +14,6 @@ def render():
 
     if diagnosis['name'] == "정상" or "정상" in diagnosis['name']:
         st.success(f"진단 결과: **{diagnosis['name']}** 입니다. 현재 특별한 병해가 발견되지 않았습니다.")
-        # 정상일 때도 분석했던 이미지는 상단에 노출
         if uploaded_img:
             st.image(uploaded_img, caption="분석된 이미지", width=300)
         return
@@ -22,14 +22,22 @@ def render():
     current_disease = diagnosis['name']
 
     if not prescription or prescription.get('disease_name') != current_disease:
-        with st.spinner(f"'{current_disease}'에 대한 맞춤형 처방전을 작성 중입니다"):
+        with st.spinner(f"'{current_disease}'에 대한 맞춤형 처방전을 작성 중입니다."):
             try:
+                start_time = time.time()
+
                 rag_engine = AgriDoctorRAG()
                 new_prescription = rag_engine.generate_prescription(current_disease)
                 new_prescription['disease_name'] = current_disease
 
                 st.session_state['prescription'] = new_prescription
                 prescription = new_prescription
+
+                end_time = time.time()
+
+                if 'latency' in st.session_state:
+                    st.session_state['latency']['rag'] = end_time - start_time
+
             except Exception as e:
                 st.error(f"처방전을 생성하는 중 오류가 발생했습니다: {e}")
                 return

@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 import os
+import time
 from src.vision_model import VisionAnalyzer
 from src.disease_db import DiseaseDictionary
 
@@ -29,7 +30,7 @@ def custom_metric(label, value):
 
 def render():
     st.header("AI 병해 진단 분석")
-    st.write("학습된 작물 잎 이미지를 업로드하거나 샘플 이미지를 선택하여 AI 진단 성능을 테스트해 보세요")
+    st.write("학습된 작물 잎 이미지를 업로드하거나 샘플 이미지를 선택하여 AI 진단 성능을 테스트해 보세요.")
 
     st.markdown("#### 샘플 이미지로 테스트하기")
     sample_col1, sample_col2 = st.columns(2)
@@ -69,6 +70,8 @@ def render():
         st.session_state['uploaded_img'] = img
 
         with st.spinner("AI 엔진 분석 중"):
+            start_time_vision = time.time()
+
             v_model = st.session_state.get('v_model')
             v_device = st.session_state.get('v_device')
 
@@ -87,7 +90,12 @@ def render():
                     grad_img = VisionAnalyzer.generate_gradcam(img, v_model, v_device, pred_idx)
                     st.image(grad_img, caption="AI 판단 근거 (Grad-CAM)", use_container_width=True)
                 else:
-                    st.info("특이사항이 발견되지 않아 시각화 맵을 생성하지 않습니다")
+                    st.info("특이사항이 발견되지 않아 시각화 맵을 생성하지 않습니다.")
+
+            end_time_vision = time.time()
+
+            if 'latency' in st.session_state:
+                st.session_state['latency']['vision'] = end_time_vision - start_time_vision
 
             st.markdown("### AI 판별 결과")
             m1, m2, m3 = st.columns(3)
