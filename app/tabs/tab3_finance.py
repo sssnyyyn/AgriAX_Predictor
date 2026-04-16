@@ -36,20 +36,22 @@ def custom_metric(label, value):
     )
 
 def render():
+    st.header("방제 경제성 시뮬레이션")
+
     diagnosis = st.session_state.get('diagnosis')
 
     if not diagnosis:
-        st.warning("Vision AI 분석을 먼저 완료해 주십시오.")
+        st.warning("'작물 병해 판별' 탭에서 작물 이미지를 분석해 주세요.")
         return
 
-    col_title, col_id, col_btn = st.columns([4, 3, 2])
-
-    with col_title:
-        st.markdown("### 재무 영향 및 ROI 시뮬레이션")
+    col_lbl, col_id, col_btn = st.columns([2, 3, 2])
 
     default_id = "agriax-predictor"
     if 'gcp_project_id' not in st.session_state:
         st.session_state['gcp_project_id'] = default_id
+
+    with col_lbl:
+        st.markdown("##### Google Cloud 연동")
 
     with col_id:
         project_id = st.text_input("GCP ID", value=st.session_state['gcp_project_id'], label_visibility="collapsed", placeholder="GCP 프로젝트 ID")
@@ -73,7 +75,7 @@ def render():
 
     if st.button("ESA 위성 NDVI 데이터 추출"):
         if not st.session_state.get('gee_authenticated'):
-            st.warning("우측 상단의 GEE 인증을 완료해 주십시오.")
+            st.warning("GCP 연동 및 GEE 인증을 완료해 주십시오.")
             return
 
         with st.spinner("데이터 추출 중"):
@@ -127,5 +129,5 @@ def render():
         st.markdown("##### 시나리오별 재무 지표 시각화")
         bar_data = pd.DataFrame({
             "금액(원)": [dynamic_loss, dynamic_cost, net_profit]
-        }, index=["방치 시 손실액", "초기 방제 비용", "방제 후 예상 순수익"])
+        }, index=["방치 시 손실액", "초기 방제 비용", "방제 후 기대수익"])
         st.bar_chart(bar_data, color="#e74c3c")

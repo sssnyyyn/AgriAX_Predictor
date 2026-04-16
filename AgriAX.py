@@ -31,11 +31,11 @@ def main():
 
     # 탭 라우팅
     tab_titles = [
-        "Vision AI Analysis",
-        "Agri-Doctor Prescription",
-        "Yield & Financial Impact",
-        "Executive Report",
-        "Tech Stack"
+        "작물 병해 판별",
+        "맞춤형 처방 가이드",
+        "방제 경제성 시뮬레이션",
+        "종합 요약 보고서",
+        "시스템 및 성능 지표"
     ]
     t1, t2, t3, t4, t5 = st.tabs(tab_titles)
 

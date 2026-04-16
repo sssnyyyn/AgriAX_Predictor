@@ -8,7 +8,7 @@ def render():
     uploaded_img = st.session_state.get('uploaded_img')
 
     if not diagnosis:
-        st.info("먼저 'AI 병해 진단' 탭에서 작물 이미지를 분석해 주세요.")
+        st.warning("'작물 병해 판별' 탭에서 작물 이미지를 분석해 주세요.")
         return
 
     if diagnosis['name'] == "정상" or "정상" in diagnosis['name']:
