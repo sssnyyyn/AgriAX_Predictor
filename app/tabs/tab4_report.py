@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import time
+from src.db_manager import DatabaseManager
 
 def custom_metric(label, value):
     st.markdown(
@@ -20,9 +22,6 @@ def custom_metric(label, value):
     )
 
 def calculate_fallback_finance(diagnosis_name):
-    """
-    Tab 3를 방문하지 않았을 경우를 대비한 기본 재무 계산 로직
-    """
     default_area = 3300
     default_yield = 1.5
     default_price = 15000
@@ -31,85 +30,99 @@ def calculate_fallback_finance(diagnosis_name):
     loss_rate = 0.35 if "탄저병" in diagnosis_name else (0.0 if "정상" in diagnosis_name else 0.20)
 
     loss = potential_revenue * loss_rate
-    cost = default_area * 150
-    roi = ((loss * 0.8 - cost) / cost * 100) if cost > 0 else 0
+    cost = default_area * 150 if loss > 0 else 0
+    profit = (loss * 0.8) - cost if loss > 0 else 0
 
-    return {
-        'no_action_loss': f"{int(loss):,}원",
-        'early_action_cost': f"{int(cost):,}원",
-        'roi_percentage': f"{roi:.1f}%",
-        'loss_val': loss,
-        'cost_val': cost
-    }
-
-def parse_money(value):
-    if isinstance(value, (int, float)):
-        return value
-    return int(str(value).replace('원', '').replace(',', '').strip())
+    return loss, cost, profit
 
 def render():
-    st.header("Executive Summary")
+    st.header("종합 리포트")
 
     diagnosis = st.session_state.get('diagnosis')
 
     if not diagnosis:
-        st.warning("'작물 병해 판별' 탭에서 작물 이미지를 분석해 주세요.")
+        st.warning("분석된 데이터가 없습니다. '작물 병해 판별' 탭에서 진단을 먼저 수행해 주십시오.")
         return
 
-    # Tab 3 데이터가 없으면 fallback 로직 실행
-    finance_data = st.session_state.get('financial_results')
-    if finance_data:
-        results = finance_data.get('roi_result', {})
-        loss_val = parse_money(results.get('no_action_loss', 0))
-        cost_val = parse_money(results.get('early_action_cost', 0))
-        roi_pct = results.get('roi_percentage', '0%')
-    else:
-        fallback = calculate_fallback_finance(diagnosis['name'])
-        results = fallback
-        loss_val = fallback['loss_val']
-        cost_val = fallback['cost_val']
-        roi_pct = fallback['roi_percentage']
+    # 데이터베이스 초기화 및 데모 데이터 삽입 (최초 1회)
+    DatabaseManager.init_db()
+    # DatabaseManager.insert_mock_data()
 
-    st.markdown("### 경제적 손실 및 방제 효과 분석")
+    loss_val, cost_val, profit_val = calculate_fallback_finance(diagnosis['name'])
 
-    try:
-        profit_val = (loss_val * 0.8) - cost_val if loss_val > 0 else 0
-
-        loss_data = pd.DataFrame({
-            "구분": ["방치 시 손실", "방제 비용", "방제 후 기대수익"],
-            "금액": [loss_val, cost_val, profit_val]
-        })
-
-        fig = px.bar(loss_data, x="구분", y="금액", color="구분",
-                     color_discrete_map={"방치 시 손실": "#e74c3c", "방제 비용": "#3498db", "방제 후 기대수익": "#2ecc71"})
-
-        fig.update_layout(showlegend=False, margin=dict(t=10, b=10))
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"차트 생성 중 오류 발생: {e}")
-
-    st.success("비즈니스 종합 분석 보고서 생성이 완료되었습니다.")
-
-    st.markdown("#### 핵심 요약 지표")
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        custom_metric("진단 작물", diagnosis['name'])
-    with m2:
-        custom_metric("방치 시 손실", results.get('no_action_loss', '0원'))
-    with m3:
-        custom_metric("방제 비용", results.get('early_action_cost', '0원'))
-    with m4:
-        custom_metric("예상 ROI", roi_pct)
+    col_btn1, col_btn2 = st.columns([3, 1])
+    with col_btn1:
+        st.markdown(f"**현재 진단 상태:** {diagnosis['name']}")
+    with col_btn2:
+        if st.button("현재 진단 결과 DB 저장", use_container_width=True):
+            try:
+                DatabaseManager.insert_record(diagnosis['name'], loss_val, cost_val, profit_val)
+                st.success("데이터베이스에 정상적으로 기록되었습니다.")
+            except Exception as e:
+                st.error(f"DB 저장 오류: {e}")
 
     st.markdown("---")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("#### 상세 진단 정보")
-        st.info(f"**판별 결과:** {diagnosis['name']}\n\n**위험 등급:** {diagnosis.get('status', '보통')}")
-        st.write("AI 모델의 분석 신뢰도와 작물 상태를 종합할 때 조속한 대응이 권고됩니다.")
+    # 1. 시계열 트렌드 분석 섹션
+    st.subheader("과거 진단 이력 및 재무 트렌드")
 
-    with c2:
-        st.markdown("#### 경제성 평가 요약")
-        summary = "방제 시 시나리오 기반 기대 순수익이 방치 시 손실액보다 높게 산출되었습니다. 초기 방제를 통해 잠재적 손실을 최소화하는 전략이 유효합니다."
-        st.warning(summary)
+    df_history = DatabaseManager.get_history()
+
+    if not df_history.empty:
+        df_history['record_date'] = pd.to_datetime(df_history['record_date'])
+
+        # 선 그래프 (시계열 예상 손실액)
+        fig_trend = px.line(
+            df_history,
+            x="record_date",
+            y="loss_amount",
+            color="disease_name",
+            markers=True,
+            labels={"record_date": "진단 일시", "loss_amount": "예상 손실액 (원)", "disease_name": "질병명"},
+            title="최근 진단별 예상 손실액 추이"
+        )
+        fig_trend.update_layout(margin=dict(t=40, b=10))
+        st.plotly_chart(fig_trend, use_container_width=True, key="tab4_history_trend_chart")
+
+        # 히스토리 데이터프레임
+        with st.expander("상세 진단 이력 데이터 보기"):
+            st.dataframe(
+                df_history.sort_values(by="record_date", ascending=False),
+                column_config={
+                    "record_date": "기록 일시",
+                    "disease_name": "상태",
+                    "loss_amount": "손실액",
+                    "cost_amount": "방제비",
+                    "net_profit": "순이익"
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+    else:
+        st.info("기록된 데이터가 없습니다.")
+
+    st.markdown("---")
+
+    # 2. 경영진 요약 리포트 생성 (Prompt Chaining 구조)
+    st.subheader("LLM 기반 의사결정 요약서")
+
+    if st.button("자동 인사이트 리포트 생성"):
+        with st.spinner("과거 데이터 및 현재 진단 결과를 분석하여 경영진 리포트를 작성 중입니다."):
+            time.sleep(1.5) # LLM 체이닝 딜레이 시뮬레이션
+
+            # 실제 LLM 연동 시 이 영역에 프롬프트 체이닝 결과값을 매핑합니다.
+            st.markdown("#### 1. 현황 요약 및 위험도 평가")
+            st.write(f"최근 시계열 데이터 분석 결과, **{diagnosis['name']}** 발생 빈도가 유지되고 있습니다. 현재 예상되는 최대 재무 손실은 {int(loss_val):,}원이며, 이는 초기 대응이 지연될 경우 구역 전체로 확산될 위험이 있습니다.")
+
+            st.markdown("#### 2. 방제 시나리오 및 우선순위 제안")
+            st.write(f"추천 액션: **집중 화학 방제 및 환경 제어**. 초기 방제 비용 {int(cost_val):,}원 투입 시, 기대 수익 {int(profit_val):,}원을 보존할 수 있어 약 {(profit_val/cost_val*100):.1f}%의 ROI가 산출됩니다.")
+
+            st.markdown("#### 3. 차주 관리 지침")
+            st.write("방제 후 3일 간격으로 위성 NDVI 데이터를 지속 모니터링하고, 토양 습도를 현행 대비 15% 낮추는 재배적 관리가 병행되어야 합니다.")
+
+        st.download_button(
+            label="리포트 PDF 다운로드",
+            data=b"PDF_Dummy_Data_Export",
+            file_name=f"AgriAX_Report_{pd.Timestamp.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf"
+        )

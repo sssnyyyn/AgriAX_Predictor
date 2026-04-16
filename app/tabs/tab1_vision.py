@@ -30,7 +30,6 @@ def custom_metric(label, value):
 
 def render():
     st.header("AI 병해 진단 분석")
-    st.write("학습된 작물 잎 이미지를 업로드하거나 샘플 이미지를 선택하여 AI 진단 성능을 테스트해 보세요.")
 
     st.markdown("#### 샘플 이미지로 테스트하기")
     sample_col1, sample_col2 = st.columns(2)

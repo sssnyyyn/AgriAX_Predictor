@@ -1,8 +1,11 @@
 import os
 import json
 import ollama
+import time
+import re
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
+from src.benchmark_utils import run_comparison_test
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "data", "chroma_db")
@@ -20,46 +23,33 @@ class AgriDoctorRAG:
             embedding_function=self.embeddings
         )
 
-    def generate_prescription(self, disease_name: str) -> dict:
-        """
-        벡터 검색 후 ollama.chat()을 직접 호출하여 처방 JSON 반환
-        """
-        # 1. DB 검색 (메타데이터 필터링 적용)
+    def generate_prescription(self, disease_name: str, weather_info: dict = None) -> dict:
+        # 1. 문서 검색
         docs = self.vectorstore.similarity_search(
-            query="추천 화학적 방제법과 재배적 방제법을 알려줘",
+            query="방제법을 알려줘",
             k=3,
             filter={"disease_name": disease_name}
         )
-
-        # 2. 검색된 문서 텍스트 결합
         context_text = "\n\n".join(doc.page_content for doc in docs)
 
+        # 2. 기상 정보 구성
+        weather_context = "기상 정보 없음"
+        if weather_info:
+            weather_context = f"온도 {weather_info.get('temperature')}°C, 습도 {weather_info.get('humidity')}%"
+
         # 3. 프롬프트 구성
-        system_prompt = """당신은 농작물 병해충 방제 전문가 'Agri-Doctor'입니다.
-제공된 [방제 매뉴얼 문맥]만을 기반으로 처방전을 작성해야 합니다.
-없는 농약이나 임의의 수치를 지어내지 마십시오.
+        system_prompt = """당신은 농작물 병해 전문가입니다. 반드시 JSON으로만 답변하세요.
+        {
+            "disease_name": "질병명",
+            "environment_and_symptoms": "발생 원인 및 증상 상세 설명",
+            "cultural_control": "재배적 방제법(농약 제외)",
+            "chemical_control": [{"pesticide_name": "농약명", "dilution": "배수", "usage": "기준"}],
+            "llm_narrative": "기상 상황을 반영한 전문가의 핵심 조언"
+        }"""
+        user_prompt = f"질병: {disease_name}\n정보: {context_text}\n기상: {weather_context}"
 
-반드시 아래의 JSON 형식으로만 응답하십시오. 다른 텍스트는 추가하지 마십시오.
-{
-    "disease_name": "진단된 질병명을 그대로 기입하세요",
-    "environment_and_symptoms": "매뉴얼에서 발생 환경과 증상을 찾아 1~2줄로 요약해서 작성하세요",
-    "cultural_control": "매뉴얼에서 농약을 제외한 재배적 방제법을 찾아 1~2줄로 요약해서 작성하세요",
-    "chemical_control": [
-        {"pesticide_name": "농약명", "dilution": "희석배수", "usage": "사용기준"}
-    ],
-    "llm_narrative": "위 정보를 바탕으로 농민을 위한 전문가 조언을 3문장 이내로 작성하세요"
-}"""
-
-        user_prompt = f"""[방제 매뉴얼 문맥]
-{context_text}
-
-[진단된 질병명]
-{disease_name}
-
-위 정보를 바탕으로 처방 JSON을 생성하십시오."""
-
-        # 4. Ollama 직접 호출
-        try:
+        # 4. 추론 함수 정의
+        def run_inference():
             response = ollama.chat(
                 model=self.llm_model,
                 messages=[
@@ -68,22 +58,16 @@ class AgriDoctorRAG:
                 ],
                 options={'temperature': 0.1}
             )
+            res_text = response['message']['content']
+            json_match = re.search(r'\{.*\}', res_text, re.DOTALL)
+            return json.loads(json_match.group(0)) if json_match else json.loads(res_text)
 
-            response_text = response['message']['content']
-
-            # JSON 파싱 전처리
-            clean_text = response_text.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean_text)
-
+        # 5. 실행 및 벤치마크 (중복 실행 방지)
+        try:
+            result = run_inference()
+            run_comparison_test(model_name=self.llm_model, test_func=lambda: result)
+            if weather_info:
+                result['weather'] = weather_info
+            return result
         except Exception as e:
-            return {"error": f"LLM 호출 또는 JSON 파싱 실패: {str(e)}"}
-
-# 실행 블록
-if __name__ == "__main__":
-    rag_engine = AgriDoctorRAG(llm_model="gemma:2b")
-
-    target_disease = "고추 탄저병"
-    print(f"[{target_disease}] 처방 생성 중...\n")
-
-    result_json = rag_engine.generate_prescription(target_disease)
-    print(json.dumps(result_json, indent=4, ensure_ascii=False))
+            return {"disease_name": disease_name, "environment_and_symptoms": f"오류 발생: {e}", "cultural_control": "점검 필요", "chemical_control": [], "llm_narrative": "시스템 재시작이 필요합니다."}

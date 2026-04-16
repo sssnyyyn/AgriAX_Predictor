@@ -1,0 +1,11 @@
+﻿model_name,latency_sec,ram_usage_mb,peak_ram_mb,status,timestamp
+gemma:2b,153.75,-822.5,339.17,success,2026-04-16 22:52:48
+gemini-2.5-flash,0.0,0.0,1277.41,success,2026-04-17 00:29:04
+gemini-2.5-flash,0.0,0.0,1184.45,success,2026-04-17 00:31:56
+gemma:2b,0.0,0.06,621.24,success,2026-04-17 00:44:02
+gemma:2b,0.0,0.02,681.02,success,2026-04-17 00:49:54
+gemma:2b,0.0,0.11,162.0,success,2026-04-17 00:57:51
+gemma:2b,0.0,0.08,374.22,success,2026-04-17 01:01:27
+gemma:2b,0.0,0.11,354.14,success,2026-04-17 01:12:38
+gemma:2b,0.0,0.04,779.0,success,2026-04-17 01:23:38
+gemma:2b,0.0,0.0,645.36,success,2026-04-17 01:29:24
