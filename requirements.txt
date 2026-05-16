@@ -12,3 +12,4 @@ ollama
 langchain_huggingface
 langchain_chroma
 psutil
+sentence-transformers
