@@ -8,3 +8,7 @@ torchvision
 tensorflow
 earthengine-api
 plotly
+ollama
+langchain_huggingface
+langchain_chroma
+psutil
