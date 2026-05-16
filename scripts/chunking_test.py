@@ -21,6 +21,6 @@ print(f"총 {len(md_header_splits)}개의 청크(Chunk)로 분할되었습니다
 
 for i, chunk in enumerate(md_header_splits):
     print(f"--- Chunk {i+1} ---")
-    print(f"📌 메타데이터: {chunk.metadata}")
-    print(f"📝 내용: {chunk.page_content}")
+    print(f"메타데이터: {chunk.metadata}")
+    print(f"내용: {chunk.page_content}")
     print("-" * 50)
